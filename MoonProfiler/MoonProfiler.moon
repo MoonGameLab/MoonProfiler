@@ -45,7 +45,6 @@ local moonProfilerRelease
 local moonProfiler
 
 moonProfilerRelease = {
-  isDebug: false
   isActive: false
   enableLevels: MoonProfilerEnableLevels
   begin: emptyFunc
@@ -63,6 +62,51 @@ moonProfilerRelease = {
 }
 
 return (active) ->
-  return true
+  setActiveMode active
 
+  if not isActive then return moonProfilerRelease
+
+  moonProfiler = {
+    isActive: true
+    enableLevels: MoonProfilerEnableLevels
+  }
+
+  local threadId, commandTable
+
+  threadId = threadStartIndex
+  commandTable = { threadId }
+
+  _getTime = love.timer.getTime
+
+  getTime = -> _getTime() * 1e6
+
+  local thread
+  outStream = love.thread.getChannel threadConfig.outStreamID
+
+  useBuffer, buffer = pcall require, "string.buffer"
+  buf_enc, _options
+  if useBuffer
+    _options = { dict: threadConfig.dict }
+    buf_enc = buffer.new _options
+    buffer = nil
+
+  bufferMode = false
+  commandBuffer, commandBufferIndex = { buffer: true }, 1
+
+  ------------------------------
+  ---------METHODS--------------
+  ------------------------------
+
+  pushCommand = (command, arg, force) ->
+    commandTable.command = command
+    commandTable[2] = arg
+    if not bufferMode or force
+      if useBuffer
+        outStream\push buf_enc\reset!encode(commandTable)\get!
+      else
+        outStream\push commandTable
+    else
+      commandBuffer[commandBufferIndex] = buf_enc\reset!\encode(commandTable)\get!
+      commandBufferIndex += 1
+    commandTable[2] = nil
 
